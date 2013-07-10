@@ -2,8 +2,8 @@ package Dist::Zilla::Plugin::DualLife;
 BEGIN {
   $Dist::Zilla::Plugin::DualLife::AUTHORITY = 'cpan:FLORA';
 }
-BEGIN {
-  $Dist::Zilla::Plugin::DualLife::VERSION = '0.01';
+{
+  $Dist::Zilla::Plugin::DualLife::VERSION = '0.02';
 }
 # ABSTRACT: Distribute dual-life modules with Dist::Zilla
 
@@ -14,6 +14,12 @@ use namespace::autoclean;
 with 'Dist::Zilla::Role::InstallTool';
 
 
+has entered_core => (
+    is => 'ro',
+    isa => 'Str',
+    default => "5.009005",
+);
+
 sub setup_installer {
     my ($self) = @_;
 
@@ -22,10 +28,11 @@ sub setup_installer {
         unless $makefile;
 
     my $content = $makefile->content;
+    my $entered = $self->entered_core;
 
-    my $dual_life_args = <<'EOC';
-$WriteMakefileArgs{INSTALLDIRS} = 'perl'
-    if $] >= 5.009005 && $] <= 5.011000;
+    my $dual_life_args = <<"EOC";
+\$WriteMakefileArgs{INSTALLDIRS} = 'perl'
+    if \$] >= $entered && \$] <= 5.011000;
 
 EOC
 
@@ -40,6 +47,7 @@ __PACKAGE__->meta->make_immutable;
 1;
 
 __END__
+
 =pod
 
 =encoding utf-8
@@ -72,6 +80,12 @@ The options added to your C<Makefile.PL> by this module are roughly equivalent
 to:
 
     'INSTALLDIRS' => ($] >= 5.009005 && $] <= 5.011000 ? 'perl' : 'site'),
+
+If the module didn't enter core in 5.009005, set the C<entered_core>
+attribute appropriately:
+
+    [DualLife]
+    entered_core=5.006001
 
 =head1 ACHTUNG!
 
@@ -118,10 +132,9 @@ Florian Ragwitz <rafl@debian.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2010 by Florian Ragwitz.
+This software is copyright (c) 2013 by Florian Ragwitz.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =cut
-
