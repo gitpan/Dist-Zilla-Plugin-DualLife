@@ -3,7 +3,7 @@ BEGIN {
   $Dist::Zilla::Plugin::DualLife::AUTHORITY = 'cpan:FLORA';
 }
 {
-  $Dist::Zilla::Plugin::DualLife::VERSION = '0.02';
+  $Dist::Zilla::Plugin::DualLife::VERSION = '0.03';
 }
 # ABSTRACT: Distribute dual-life modules with Dist::Zilla
 
@@ -20,6 +20,13 @@ has entered_core => (
     default => "5.009005",
 );
 
+
+has eumm_bundled => (
+    is => 'ro',
+    isa => 'Bool',
+    default => "0",
+);
+
 sub setup_installer {
     my ($self) = @_;
 
@@ -30,11 +37,14 @@ sub setup_installer {
     my $content = $makefile->content;
     my $entered = $self->entered_core;
 
-    my $dual_life_args = <<"EOC";
-\$WriteMakefileArgs{INSTALLDIRS} = 'perl'
-    if \$] >= $entered && \$] <= 5.011000;
+    my $dual_life_args = q[$WriteMakefileArgs{INSTALLDIRS} = 'perl'];
 
-EOC
+    if ( $self->eumm_bundled ) {
+        $dual_life_args .= "\n    if \$] <= 5.011000;\n\n";
+    }
+    else {
+        $dual_life_args .= "\n    if \$] >= $entered && \$] <= 5.011000;\n\n"
+    }
 
     $content =~ s/(?=WriteMakefile\s*\()/$dual_life_args/
         or $self->log_fatal('Failed to insert INSTALLDIRS magic');
@@ -86,6 +96,20 @@ attribute appropriately:
 
     [DualLife]
     entered_core=5.006001
+
+=head1 ATTRIBUTES
+
+=head2 entered_core
+
+Indicates when the distribution joined core.  Defaults to 5.009005 for
+all the things that came in for 5.10.
+
+=head2 eumm_bundled
+
+Boolean for distributions bundled with ExtUtils::MakeMaker.  Prior to v5.12,
+bundled modules might get installed into the core library directory, so
+even if they didn't come into core until later, they need to be forced into
+core prior to v5.12 so they take precedence.
 
 =head1 ACHTUNG!
 
