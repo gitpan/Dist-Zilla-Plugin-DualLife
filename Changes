@@ -1,11 +1,20 @@
-0.03   Fri, 30 Aug 2013 12:20:05 -0400
-  * Document entered_core (David Golden).
-  * Add support for distributions bundled with ExtUtils::MakeMaker
-    (David Golden).
+Revision history for Dist-Zilla-Plugin-DualLife
 
-0.02   Wed, 10 Jul 2013 09:37:01 -0400
-  * Make the version the module first entered the core configurable
-    (David Golden).
+0.04      2014-11-02 19:42:43Z
+          - do nothing if the version the module entered core is late enough
+            that no special action is needed
+          - calculate 'entered_core' parameter from Module::CoreList, rather
+            than assuming 5.009005
+          - build fails if module is not dual-life at all
 
-0.01   Wed, 15 Dec 2010 19:03:13 +0100
-  * Initial release.
+0.03      2013-08-30 16:20:05Z
+          - Document entered_core (David Golden).
+          - Add support for distributions bundled with ExtUtils::MakeMaker
+            (David Golden).
+
+0.02      2013-07-10 13:37:01Z
+          - Make the version the module first entered the core configurable
+            (David Golden).
+
+0.01      2010-12-15 18:03:13Z
+          - Initial release.

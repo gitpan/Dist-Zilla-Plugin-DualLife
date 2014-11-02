@@ -1,25 +1,73 @@
 package Dist::Zilla::Plugin::DualLife;
-BEGIN {
-  $Dist::Zilla::Plugin::DualLife::AUTHORITY = 'cpan:FLORA';
-}
-{
-  $Dist::Zilla::Plugin::DualLife::VERSION = '0.03';
-}
+# git description: 0.03-12-gbb9762c
+$Dist::Zilla::Plugin::DualLife::VERSION = '0.04';
 # ABSTRACT: Distribute dual-life modules with Dist::Zilla
 
 use Moose;
-use List::AllUtils 'first';
+use List::Util 'first';
 use namespace::autoclean;
 
 with 'Dist::Zilla::Role::InstallTool';
 
+#pod =head1 SYNOPSIS
+#pod
+#pod In your dist.ini:
+#pod
+#pod   [DualLife]
+#pod
+#pod =head1 DESCRIPTION
+#pod
+#pod Dual-life modules, which are modules distributed both as part of the perl core
+#pod and on CPAN, sometimes need a little special treatment. This module tries
+#pod provide that for modules built with C<Dist::Zilla>.
+#pod
+#pod Currently the only thing this module does is providing an C<INSTALLDIRS> option
+#pod to C<ExtUtils::MakeMaker>'s C<WriteMakefile> function, so dual-life modules will
+#pod be installed in the right section of C<@INC> depending on different versions of
+#pod perl.
+#pod
+#pod As more things that need special handling for dual-life modules show up, this
+#pod module will try to address them as well.
+#pod
+#pod The options added to your C<Makefile.PL> by this module are roughly equivalent
+#pod to:
+#pod
+#pod     'INSTALLDIRS' => ($] >= 5.009005 && $] <= 5.011000 ? 'perl' : 'site'),
+#pod
+#pod (assuming a module that entered core in 5.009005).
+#pod
+#pod     [DualLife]
+#pod     entered_core=5.006001
+#pod
+#pod =for Pod::Coverage setup_installer
+#pod
+#pod =attr entered_core
+#pod
+#pod Indicates when the distribution joined core.  This option is not normally
+#pod needed, as L<Module::CoreList> is used to determine this.
+#pod
+#pod =cut
 
 has entered_core => (
     is => 'ro',
     isa => 'Str',
-    default => "5.009005",
+    lazy => 1,
+    default => sub {
+        my $self = shift;
+        (my $name = $self->zilla->name) =~ s/-/::/g;
+        require Module::CoreList;
+        return Module::CoreList->first_release($name);
+    },
 );
 
+#pod =attr eumm_bundled
+#pod
+#pod Boolean for distributions bundled with ExtUtils::MakeMaker.  Prior to v5.12,
+#pod bundled modules might get installed into the core library directory, so
+#pod even if they didn't come into core until later, they need to be forced into
+#pod core prior to v5.12 so they take precedence.
+#pod
+#pod =cut
 
 has eumm_bundled => (
     is => 'ro',
@@ -30,12 +78,22 @@ has eumm_bundled => (
 sub setup_installer {
     my ($self) = @_;
 
+    my $entered = $self->entered_core;
+
+    if ($entered > 5.011000 && not $self->eumm_bundled) {
+        $self->log('this module entered core after 5.011 - nothing to do here');
+        return;
+    }
+
+    # technically this only checks if the module is core, not dual-lifed, but a
+    # separate repository shouldn't exist for non-dual modules anyway
+    $self->log_fatal('this module is not dual-life!') if not $entered;
+
     my $makefile = first { $_->name eq 'Makefile.PL' } @{ $self->zilla->files };
     $self->log_fatal('No Makefile.PL. It needs to be provided by another plugin')
         unless $makefile;
 
     my $content = $makefile->content;
-    my $entered = $self->entered_core;
 
     my $dual_life_args = q[$WriteMakefileArgs{INSTALLDIRS} = 'perl'];
 
@@ -60,11 +118,15 @@ __END__
 
 =pod
 
-=encoding utf-8
+=encoding UTF-8
 
 =head1 NAME
 
 Dist::Zilla::Plugin::DualLife - Distribute dual-life modules with Dist::Zilla
+
+=head1 VERSION
+
+version 0.04
 
 =head1 SYNOPSIS
 
@@ -91,8 +153,7 @@ to:
 
     'INSTALLDIRS' => ($] >= 5.009005 && $] <= 5.011000 ? 'perl' : 'site'),
 
-If the module didn't enter core in 5.009005, set the C<entered_core>
-attribute appropriately:
+(assuming a module that entered core in 5.009005).
 
     [DualLife]
     entered_core=5.006001
@@ -101,8 +162,8 @@ attribute appropriately:
 
 =head2 entered_core
 
-Indicates when the distribution joined core.  Defaults to 5.009005 for
-all the things that came in for 5.10.
+Indicates when the distribution joined core.  This option is not normally
+needed, as L<Module::CoreList> is used to determine this.
 
 =head2 eumm_bundled
 
@@ -110,43 +171,6 @@ Boolean for distributions bundled with ExtUtils::MakeMaker.  Prior to v5.12,
 bundled modules might get installed into the core library directory, so
 even if they didn't come into core until later, they need to be forced into
 core prior to v5.12 so they take precedence.
-
-=head1 ACHTUNG!
-
-=over 4
-
-=item *
-
-This module is a really B<gross> hack
-
-To do the things it does properly, C<Dist::Zilla>'s C<MakeMaker> plugin would
-first have to be reworked a lot. If and whenever that happens, this module will
-be adapted accordingly and maybe stop being so horribly wrong.
-
-=item *
-
-Only C<ExtUtils::MakeMaker> is supported
-
-If you decide to use an install tool other than C<ExtUtils::MakeMaker>, this
-module will C<NOT> work. However, that's only because I happen to use
-C<ExtUtils::MakeMaker> only. If you prefer using C<Module::Build> or something
-else instead and want to use this plugin with it, I'd be very to apply patches
-to make it work with those other install tools.
-
-=item *
-
-Only works with C<Makefile.PL>s generated by C<Dist::Zilla::Plugin::MakeMaker>
-
-This module rewrites the contents of an existing C<Makefile.PL> to insert
-additional options. The heuristics it currently uses for that depend on the
-conventions currently used in C<Makefile.PL>s generated with
-C<Dist::Zilla::Plugin::MakeMaker>. If those change, this module will
-break. However, I'll do my best to update this plugin if that ever happens.
-
-Hopefully we'll have a more extensible C<MakeMaker> plugin at some point, so all
-these issues will go away.
-
-=back
 
 =for Pod::Coverage setup_installer
 
@@ -156,9 +180,25 @@ Florian Ragwitz <rafl@debian.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2013 by Florian Ragwitz.
+This software is copyright (c) 2010 by Florian Ragwitz.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
+
+=head1 CONTRIBUTORS
+
+=for stopwords Karen Etheridge David Golden
+
+=over 4
+
+=item *
+
+Karen Etheridge <ether@cpan.org>
+
+=item *
+
+David Golden <dagolden@cpan.org>
+
+=back
 
 =cut
